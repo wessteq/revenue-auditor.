@@ -1,0 +1,42 @@
+/* styles.css */
+.revenue-auditor-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.revenue-auditor-spinner {
+  display: none;
+  width: 10px;
+  height: 10px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.revenue-auditor-status.is-busy .revenue-auditor-spinner {
+  display: inline-block;
+  animation: revenue-auditor-spin 0.65s linear infinite;
+}
+.revenue-auditor-status-label {
+  white-space: nowrap;
+}
+.revenue-auditor-report-bug-button {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 0.25rem;
+  padding: 4px 12px;
+  font-size: 0.9em;
+  cursor: pointer;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background-color: var(--interactive-normal);
+  color: var(--text-normal);
+}
+.revenue-auditor-report-bug-button:hover {
+  background-color: var(--interactive-hover);
+}
+@keyframes revenue-auditor-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
