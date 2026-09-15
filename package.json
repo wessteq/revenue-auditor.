@@ -1,6 +1,6 @@
 {
 	"name": "revenue-auditor",
-	"version": "1.0.0",
+	"version": "1.0.2",
 	"description": "Obsidian plugin that runs a mock AI revenue audit on the active note.",
 	"main": "main.js",
 	"scripts": {
