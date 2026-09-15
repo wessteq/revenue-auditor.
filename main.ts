@@ -2107,7 +2107,7 @@ export default class RevenueAuditorPlugin extends Plugin {
 				id: "open-audit-dashboard",
 				name: "Open Audit Dashboard",
 				callback: () => {
-					void this.openAuditDashboard().catch((error) => {
+					void this.openAuditDashboard().catch((error: unknown) => {
 						this.logger.error("Failed to open audit dashboard.", error);
 						new Notice(`Could not open audit dashboard: ${this.describeError(error)}`);
 					});
@@ -2116,7 +2116,7 @@ export default class RevenueAuditorPlugin extends Plugin {
 
 			this.addCommand({
 				id: "run-batch-audit-on-folder",
-				name: "Revenue Auditor: Run Batch Audit on Folder",
+				name: "Run Batch Audit on Folder",
 				callback: () => {
 					this.openBatchAuditModal();
 				},
@@ -2129,7 +2129,7 @@ export default class RevenueAuditorPlugin extends Plugin {
 					void this.copyBugReportToClipboard();
 				},
 			});
-		} catch (error) {
+		} catch (error: unknown) {
 			// If setup itself fails, log it but let the plugin finish
 			// loading rather than throwing out of onload().
 			this.logger.error("Failed to initialize.", error);
@@ -2240,7 +2240,7 @@ export default class RevenueAuditorPlugin extends Plugin {
 			activeFolder ?? (contractsFolder instanceof TFolder ? contractsFolder : this.app.vault.getRoot());
 
 		new BatchAuditFolderModal(this.app, folders, folderDropdownValue(defaultFolder), (folder, includeSubfolders) => {
-			void this.runBatchAudit(folder, includeSubfolders).catch((error) => {
+			void this.runBatchAudit(folder, includeSubfolders).catch((error: unknown) => {
 				this.lastAuditContext.lastError = this.describeError(error);
 				this.logger.error("Batch audit failed.", error);
 				new Notice(`Batch audit failed: ${this.describeError(error)}`);
@@ -2339,7 +2339,7 @@ export default class RevenueAuditorPlugin extends Plugin {
 				legalRisk,
 				error: null,
 			};
-		} catch (error) {
+		} catch (error: unknown) {
 			this.logger.warn(`Batch audit failed for "${contractFile.path}": ${this.describeError(error)}`);
 			return {
 				filePath: contractFile.path,
@@ -2475,7 +2475,7 @@ export default class RevenueAuditorPlugin extends Plugin {
 				if (found instanceof TFile && isVaultCsvFile(found)) {
 					return found;
 				}
-			} catch (error) {
+			} catch (error: unknown) {
 				console.warn(`Revenue Auditor: vault lookup failed for "${path}".`, error);
 			}
 		}
@@ -2490,7 +2490,7 @@ export default class RevenueAuditorPlugin extends Plugin {
 		};
 		// Never let a rejection become an unhandled promise rejection -
 		// report it to the user via a Notice instead.
-		this.runAudit(contractFile, csvFile).catch((error) => {
+		this.runAudit(contractFile, csvFile).catch((error: unknown) => {
 			this.lastAuditContext.lastError = this.describeError(error);
 			this.logger.error("Audit run failed.", error);
 			if (error instanceof OperationTimeoutError) {
@@ -2728,7 +2728,7 @@ export default class RevenueAuditorPlugin extends Plugin {
 		if (!folder) {
 			try {
 				await this.app.vault.createFolder(ANALYSIS_FOLDER);
-			} catch (error) {
+			} catch (error: unknown) {
 				const raced = this.app.vault.getAbstractFileByPath(ANALYSIS_FOLDER);
 				if (!(raced instanceof TFolder)) {
 					console.warn(`Revenue Auditor: could not create "${ANALYSIS_FOLDER}".`, error);
@@ -2857,7 +2857,7 @@ export default class RevenueAuditorPlugin extends Plugin {
 			}
 			this.logger.info("Bug report copied to clipboard.");
 			new Notice("Revenue Auditor: bug report copied to the clipboard. Paste it into a GitHub issue.");
-		} catch (error) {
+		} catch (error: unknown) {
 			this.logger.error("Failed to copy bug report.", error);
 			new Notice(`Could not copy bug report: ${this.describeError(error)}`);
 		}
@@ -2982,7 +2982,7 @@ export default class RevenueAuditorPlugin extends Plugin {
 				parseTimeoutMs,
 				"Document parsing (Docling)"
 			);
-		} catch (error) {
+		} catch (error: unknown) {
 			if (error instanceof OperationTimeoutError) {
 				this.logger.error(error.message);
 				if (!options?.quiet) {
@@ -3024,7 +3024,8 @@ export default class RevenueAuditorPlugin extends Plugin {
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		const saved = (await this.loadData()) as Partial<RevenueAuditorSettings> | undefined;
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
 	}
 
 	async saveSettings() {
@@ -3299,7 +3300,7 @@ export default class RevenueAuditorPlugin extends Plugin {
 			);
 			this.logger.info("AI risk analysis finished.");
 			return analysis;
-		} catch (error) {
+		} catch (error: unknown) {
 			if (error instanceof OperationTimeoutError) {
 				this.logger.warn(error.message);
 				new Notice(
@@ -3351,7 +3352,7 @@ export default class RevenueAuditorPlugin extends Plugin {
 				validRowCount: parsed.validRowCount,
 				skippedRowCount: parsed.skippedRowCount,
 			};
-		} catch (error) {
+		} catch (error: unknown) {
 			console.warn("Revenue Auditor: failed to read payments.csv; skipping reconciliation.", error);
 			notifySkipped();
 			return { kind: "skipped" };
@@ -3764,7 +3765,7 @@ class RevenueAuditorSettingTab extends PluginSettingTab {
 						} else {
 							new Notice(`❌ Docling test failed (${result.resolvedPath}): ${result.message}`);
 						}
-					} catch (error) {
+					} catch (error: unknown) {
 						const message = error instanceof Error ? error.message : String(error);
 						new Notice(`❌ Docling test failed: ${message}`);
 					} finally {

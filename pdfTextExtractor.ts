@@ -15,15 +15,6 @@
 //     Plain text extraction never needs a canvas, and this classic v1.x
 //     engine has no such dependency at all.
 //
-const PDFJS: PdfJsModule = require("pdf-parse/lib/pdf.js/v1.10.100/build/pdf.js");
-// Bundle the matching worker as a module. PDF.js would otherwise inject a
-// <script> tag to load it, which Obsidian's community review forbids.
-require("pdf-parse/lib/pdf.js/v1.10.100/build/pdf.worker.js");
-
-// Never spin up a worker thread/process for parsing - keeps everything
-// synchronous-ish and avoids needing to ship/locate a separate worker file.
-PDFJS.disableWorker = true;
-
 interface PdfTextItem {
 	str: string;
 	transform: number[];
@@ -48,6 +39,15 @@ interface PdfJsModule {
 	getDocument(data: Buffer): Promise<PdfDocumentProxy>;
 }
 
+const PDFJS = require("pdf-parse/lib/pdf.js/v1.10.100/build/pdf.js") as PdfJsModule;
+// Bundle the matching worker as a module. PDF.js would otherwise inject a
+// <script> tag to load it, which Obsidian's community review forbids.
+void (require("pdf-parse/lib/pdf.js/v1.10.100/build/pdf.worker.js") as unknown);
+
+// Never spin up a worker thread/process for parsing - keeps everything
+// synchronous-ish and avoids needing to ship/locate a separate worker file.
+PDFJS.disableWorker = true;
+
 export interface PdfExtractionResult {
 	text: string;
 	numPages: number;
@@ -70,7 +70,8 @@ export interface PdfExtractionResult {
  * identical, silently yielding zero pages/empty text instead of an error.
  */
 export async function extractTextFromPdf(data: ArrayBuffer | Uint8Array): Promise<PdfExtractionResult> {
-	const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data as ArrayBuffer);
+	const bytes: Uint8Array = data instanceof Uint8Array ? data : new Uint8Array(data);
+	const buffer = Buffer.from(bytes);
 
 	let doc: PdfDocumentProxy | null = null;
 	try {
@@ -90,7 +91,7 @@ export async function extractTextFromPdf(data: ArrayBuffer | Uint8Array): Promis
 		const text = pageTexts.join("\n\n");
 
 		return { text, numPages, error: null };
-	} catch (error) {
+	} catch (error: unknown) {
 		console.error("Revenue Auditor: PDF extraction failed.", error);
 		return { text: "", numPages: 0, error: describeError(error) };
 	} finally {

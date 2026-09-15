@@ -58,7 +58,7 @@ export async function runAiAudit(
 			return stripMarkdownFences(await requestOllamaChat(settings, messages));
 		}
 		return stripMarkdownFences(await requestOpenAiCompatibleChat(settings, messages));
-	} catch (error) {
+	} catch (error: unknown) {
 		return `- AI risk analysis failed: ${describeAnalyzerError(error)}`;
 	}
 }
@@ -189,7 +189,7 @@ async function postJson(
 	let parsed: unknown = null;
 	if (raw.trim()) {
 		try {
-			parsed = JSON.parse(raw);
+			parsed = JSON.parse(raw) as unknown;
 		} catch {
 			throw new Error(`Non-JSON response (${response.status}): ${truncateErrorBody(raw)}`);
 		}

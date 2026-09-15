@@ -105,7 +105,7 @@ export async function routeVaultFile(
 	logger?: VaultRouterLogger,
 	onMoved?: (from: string, to: string) => void
 ): Promise<TFile> {
-	const destination = destinationFolderFor(file);
+	const destination = destinationFolderFor(file, app);
 	if (!destination) {
 		return file;
 	}
@@ -122,8 +122,9 @@ export async function moveFileToFolder(
 	return relocateOrDedupe(app, file, destFolder, logger, onMoved);
 }
 
-export function destinationFolderFor(file: TFile): string | null {
-	if (file.path.startsWith(".obsidian/") || file.path.includes("/.obsidian/")) {
+export function destinationFolderFor(file: TFile, app: App): string | null {
+	const configDir = app.vault.configDir;
+	if (file.path.startsWith(`${configDir}/`) || file.path.includes(`/${configDir}/`)) {
 		return null;
 	}
 	if (isAuditIndexFile(file)) {
@@ -154,7 +155,7 @@ async function ensureFolder(app: App, path: string): Promise<TFolder | null> {
 	}
 	try {
 		return await app.vault.createFolder(path);
-	} catch (error) {
+	} catch (error: unknown) {
 		const raced = app.vault.getAbstractFileByPath(path);
 		if (raced instanceof TFolder) {
 			return raced;
@@ -224,7 +225,7 @@ async function collectAuditIndexToAnalysis(app: App, logger?: VaultRouterLogger)
 				logger?.info(
 					`Removed duplicate "${stray.path}" (master index is ${analysisIndex.path}).`
 				);
-			} catch (error) {
+			} catch (error: unknown) {
 				logger?.warn(
 					`Could not remove duplicate "${path}": ${
 						error instanceof Error ? error.message : String(error)
@@ -265,7 +266,7 @@ async function relocateOrDedupe(
 			try {
 				await app.fileManager.trashFile(file);
 				logger?.info(`Removed duplicate "${from}" (kept "${destPath}").`);
-			} catch (error) {
+			} catch (error: unknown) {
 				logger?.warn(
 					`Could not remove duplicate "${from}": ${
 						error instanceof Error ? error.message : String(error)
@@ -282,7 +283,7 @@ async function relocateOrDedupe(
 		await app.fileManager.renameFile(file, destPath);
 		onMoved?.(from, file.path);
 		return file;
-	} catch (error) {
+	} catch (error: unknown) {
 		logger?.warn(
 			`Could not move "${from}" to "${destPath}": ${error instanceof Error ? error.message : String(error)}`
 		);

@@ -26,7 +26,20 @@ import * as path from "path";
 import { promisify } from "util";
 import { extractTextFromPdf } from "./pdfTextExtractor";
 
-const execAsync = promisify(exec);
+interface ExecResult {
+	stdout: string;
+	stderr: string;
+}
+
+interface ExecIo {
+	stdout?: string;
+	stderr?: string;
+}
+
+const execAsync = promisify(exec) as (
+	command: string,
+	options?: { timeout?: number }
+) => Promise<ExecResult>;
 
 const LOG_PREFIX = "[Revenue Auditor] DoclingLocalExtractor:";
 
@@ -168,7 +181,7 @@ export class MarkdownExtractor implements DocumentExtractor {
 				label: `${extension === "txt" ? "Text file" : "Markdown note"} (${path.basename(filePath)})`,
 				format: extension === "txt" ? "text" : "markdown",
 			};
-		} catch (error) {
+		} catch (error: unknown) {
 			return {
 				text: "",
 				label: `Markdown/text file (${path.basename(filePath)}) - failed to read`,
@@ -212,7 +225,7 @@ export class PdfParseExtractor implements DocumentExtractor {
 				label: `PDF (${path.basename(filePath)}, ${pageNote}, via pdf-parse)`,
 				format: "pdf",
 			};
-		} catch (error) {
+		} catch (error: unknown) {
 			return {
 				text: "",
 				label: `PDF (${path.basename(filePath)}) - failed to read`,
@@ -341,7 +354,7 @@ export async function testDoclingExecutable(
 			message: output.length > 0 ? output : "Docling responded but printed no version output.",
 			resolvedPath,
 		};
-	} catch (error) {
+	} catch (error: unknown) {
 		return { success: false, message: describeError(error), resolvedPath };
 	}
 }
@@ -378,9 +391,20 @@ export interface DoclingExtractorOptions {
 
 const DEFAULT_DOCLING_TIMEOUT_MS = 120_000;
 
+function readExecIo(error: unknown): ExecIo {
+	if (typeof error !== "object" || error === null) {
+		return {};
+	}
+	const record = error as Record<string, unknown>;
+	return {
+		stdout: typeof record.stdout === "string" ? record.stdout : undefined,
+		stderr: typeof record.stderr === "string" ? record.stderr : undefined,
+	};
+}
+
 function isUnknownCliOptionError(error: unknown): boolean {
-	const execError = error as { stderr?: string; message?: string };
-	const haystack = `${describeError(error)}\n${execError?.stderr ?? ""}`.toLowerCase();
+	const execError = readExecIo(error);
+	const haystack = `${describeError(error)}\n${execError.stderr ?? ""}`.toLowerCase();
 	return (
 		haystack.includes("no such option") ||
 		haystack.includes("unrecognized arguments") ||
@@ -531,7 +555,7 @@ export class DoclingLocalExtractor implements DocumentExtractor {
 
 			try {
 				await execAsync(preferredCommand, { timeout: timeoutMs });
-			} catch (error) {
+			} catch (error: unknown) {
 				if (!isUnknownCliOptionError(error)) {
 					throw error;
 				}
@@ -597,17 +621,17 @@ export class DoclingLocalExtractor implements DocumentExtractor {
 				label: `PDF (${path.basename(filePath)}, via local Docling CLI)`,
 				format: "pdf",
 			};
-		} catch (error) {
+		} catch (error: unknown) {
 			// A rejected execAsync() promise carries stdout/stderr
 			// captured up to the point of failure - log both, since the
 			// CLI's own error message (e.g. a Python traceback) is
 			// usually far more informative than the generic exit-code
 			// error alone.
-			const execError = error as { stdout?: string; stderr?: string };
-			if (execError?.stdout) {
+			const execError = readExecIo(error);
+			if (execError.stdout) {
 				console.error(`${LOG_PREFIX} stdout (on failure):\n${execError.stdout}`);
 			}
-			if (execError?.stderr) {
+			if (execError.stderr) {
 				console.error(`${LOG_PREFIX} stderr (on failure):\n${execError.stderr}`);
 			}
 			console.error(`${LOG_PREFIX} extraction failed for "${filePath}":`, error);
@@ -667,7 +691,7 @@ export class DocumentExtractorRegistry {
 					return result;
 				}
 				lastResult = result;
-			} catch (error) {
+			} catch (error: unknown) {
 				lastResult = {
 					text: "",
 					label: `${extractor.name} threw unexpectedly`,
