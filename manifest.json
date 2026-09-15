@@ -1,7 +1,7 @@
 {
 	"id": "revenue-auditor",
 	"name": "Revenue Auditor",
-	"version": "1.0.2",
+	"version": "1.0.3",
 	"minAppVersion": "1.7.0",
 	"description": "Audit Markdown, text, and PDF contracts: extract terms, reconcile payments, and generate a risk report.",
 	"author": "Revenue Auditor",
