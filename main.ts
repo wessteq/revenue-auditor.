@@ -2868,8 +2868,10 @@ export default class RevenueAuditorPlugin extends Plugin {
 		const textarea = document.createElement("textarea");
 		textarea.value = text;
 		textarea.setAttribute("readonly", "true");
-		textarea.style.position = "fixed";
-		textarea.style.opacity = "0";
+		textarea.setCssStyles({
+			position: "fixed",
+			opacity: "0",
+		});
 		document.body.appendChild(textarea);
 		textarea.select();
 		const copied = document.execCommand("copy");
@@ -3622,9 +3624,9 @@ class RevenueAuditorSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 		containerEl.empty();
 
-		containerEl.createEl("h2", { text: "Revenue Auditor Settings" });
+		new Setting(containerEl).setHeading().setName("Revenue Auditor Settings");
 
-		containerEl.createEl("h3", { text: "AI & API" });
+		new Setting(containerEl).setHeading().setName("AI & API");
 
 		new Setting(containerEl)
 			.setName("API key")
@@ -3701,7 +3703,7 @@ class RevenueAuditorSettingTab extends PluginSettingTab {
 					});
 			});
 
-		containerEl.createEl("h3", { text: "Audit keywords" });
+		new Setting(containerEl).setHeading().setName("Audit keywords");
 
 		new Setting(containerEl)
 			.setName("Risk keywords")
@@ -3733,7 +3735,7 @@ class RevenueAuditorSettingTab extends PluginSettingTab {
 				textArea.inputEl.addClass("revenue-auditor-settings-textarea");
 			});
 
-		containerEl.createEl("h3", { text: "Document extraction (Docling)" });
+		new Setting(containerEl).setHeading().setName("Document extraction (Docling)");
 
 		new Setting(containerEl)
 			.setName("Docling binary path")

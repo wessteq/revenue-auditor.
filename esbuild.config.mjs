@@ -11,6 +11,52 @@ If you want to view the source, open main.ts in this plugin's folder.
 
 const prod = process.argv[2] === "production";
 const RELEASE_FILES = ["main.js", "styles.css", "manifest.json"];
+const DYNAMIC_SCRIPT_ELEMENT = /createElement\(\s*['"`]script['"`]\s*\)/;
+
+/**
+ * PDF.js ships a browser fallback that injects a <script> tag to load
+ * `pdf.worker.js`. Obsidian's community review rejects any
+ * `createElement('script')` in the bundle, even when that path is unused.
+ *
+ * Rewrite the vendored builds so the worker is `require()`'d as a bundled
+ * module and the script-tag helper is removed. Text extraction is unchanged.
+ */
+function bundlePdfJsWithoutScriptInjection() {
+	return {
+		name: "bundle-pdfjs-without-script-injection",
+		setup(build) {
+			build.onLoad(
+				{ filter: /[\\/]pdf-parse[\\/]lib[\\/]pdf\.js[\\/].+[\\/]build[\\/]pdf(?:\.worker)?\.js$/ },
+				(args) => {
+					let contents = readFileSync(args.path, "utf8");
+
+					contents = contents.replace(
+						/Util\.loadScript = function Util_loadScript\(src, callback\) \{[\s\S]*?appendChild\(script\);\s*\};/,
+						`Util.loadScript = function Util_loadScript(src, callback) {
+    throw new Error("PDF.js cannot load scripts; the worker is bundled as a module.");
+  };`
+					);
+
+					contents = contents.replace(
+						/fakeWorkerFilesLoader = useRequireEnsure \? function \(callback\) \{[\s\S]*?\} : null;/,
+						`fakeWorkerFilesLoader = function (callback) {
+    var worker = require("./pdf.worker.js");
+    callback(worker.WorkerMessageHandler);
+  };`
+					);
+
+					if (DYNAMIC_SCRIPT_ELEMENT.test(contents)) {
+						throw new Error(
+							`Failed to strip createElement("script") from ${args.path}`
+						);
+					}
+
+					return { contents, loader: "js" };
+				}
+			);
+		},
+	};
+}
 
 const context = await esbuild.context({
 	banner: {
@@ -42,6 +88,7 @@ const context = await esbuild.context({
 	treeShaking: true,
 	outfile: "main.js",
 	minify: prod,
+	plugins: [bundlePdfJsWithoutScriptInjection()],
 });
 
 async function packageStyles() {
@@ -86,14 +133,17 @@ function assertReleaseArtifacts() {
 	if (manifest.id !== "revenue-auditor") {
 		throw new Error(`manifest.json id must be "revenue-auditor" (got "${manifest.id}").`);
 	}
-	if (manifest.version !== "1.0.0") {
-		throw new Error(`manifest.json version must be "1.0.0" (got "${manifest.version}").`);
+	if (!/^\d+\.\d+\.\d+$/.test(manifest.version)) {
+		throw new Error(`manifest.json version must be a semver string like "1.0.1" (got "${manifest.version}").`);
 	}
-	if (manifest.minAppVersion !== "1.5.0") {
-		throw new Error(`manifest.json minAppVersion must be "1.5.0" (got "${manifest.minAppVersion}").`);
+	if (manifest.minAppVersion !== "1.7.0") {
+		throw new Error(`manifest.json minAppVersion must be "1.7.0" (got "${manifest.minAppVersion}").`);
 	}
 	if (manifest.isDesktopOnly !== true) {
 		throw new Error("manifest.json must set isDesktopOnly: true because the plugin uses Node APIs.");
+	}
+	if (DYNAMIC_SCRIPT_ELEMENT.test(js)) {
+		throw new Error("main.js still contains dynamic script-element creation.");
 	}
 
 	console.log("Release artifacts ready:");

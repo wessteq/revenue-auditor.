@@ -15,8 +15,10 @@
 //     Plain text extraction never needs a canvas, and this classic v1.x
 //     engine has no such dependency at all.
 //
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const PDFJS: PdfJsModule = require("pdf-parse/lib/pdf.js/v1.10.100/build/pdf.js");
+// Bundle the matching worker as a module. PDF.js would otherwise inject a
+// <script> tag to load it, which Obsidian's community review forbids.
+require("pdf-parse/lib/pdf.js/v1.10.100/build/pdf.worker.js");
 
 // Never spin up a worker thread/process for parsing - keeps everything
 // synchronous-ish and avoids needing to ship/locate a separate worker file.
@@ -86,8 +88,6 @@ export async function extractTextFromPdf(data: ArrayBuffer | Uint8Array): Promis
 		}
 
 		const text = pageTexts.join("\n\n");
-		// eslint-disable-next-line no-console
-		console.log(`📄 Extracted ${text.length} characters successfully. (Full text hidden for privacy)`);
 
 		return { text, numPages, error: null };
 	} catch (error) {
