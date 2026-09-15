@@ -1,3 +1,4 @@
+import { requestUrl, type RequestUrlResponse } from "obsidian";
 import type { RevenueAuditorSettings } from "./main";
 import { DEFAULT_AI_PAYLOAD_CHARS } from "./textSanitizer";
 
@@ -183,42 +184,63 @@ async function postJson(
 	headers: Record<string, string> = {},
 	timeoutMs = CLOUD_REQUEST_TIMEOUT_MS
 ): Promise<unknown> {
-	const controller = new AbortController();
-	const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
-
-	try {
-		const response = await fetch(url, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				...headers,
-			},
-			body: JSON.stringify(body),
-			signal: controller.signal,
-		});
-
-		const raw = await response.text();
-		let parsed: unknown = null;
-		if (raw.trim()) {
-			try {
-				parsed = JSON.parse(raw);
-			} catch {
-				throw new Error(`Non-JSON response (${response.status}): ${truncateErrorBody(raw)}`);
-			}
+	const response = await requestJsonWithTimeout(url, body, headers, timeoutMs);
+	const raw = response.text ?? "";
+	let parsed: unknown = null;
+	if (raw.trim()) {
+		try {
+			parsed = JSON.parse(raw);
+		} catch {
+			throw new Error(`Non-JSON response (${response.status}): ${truncateErrorBody(raw)}`);
 		}
-
-		if (!response.ok) {
-			throw new Error(formatHttpError(response.status, parsed, raw));
-		}
-		return parsed;
-	} catch (error) {
-		if (error instanceof DOMException && error.name === "AbortError") {
-			throw new Error(`Request timed out after ${timeoutMs / 1000}s.`);
-		}
-		throw error;
-	} finally {
-		window.clearTimeout(timeout);
 	}
+
+	if (response.status < 200 || response.status >= 300) {
+		throw new Error(formatHttpError(response.status, parsed, raw));
+	}
+	return parsed;
+}
+
+/**
+ * `requestUrl` has no AbortSignal. Race the HTTP call against a timer so
+ * the previous fetch-based timeout (and its error message) stay the same.
+ */
+function requestJsonWithTimeout(
+	url: string,
+	body: Record<string, unknown>,
+	headers: Record<string, string>,
+	timeoutMs: number
+): Promise<RequestUrlResponse> {
+	return new Promise((resolve, reject) => {
+		let settled = false;
+		const timeoutId = window.setTimeout(() => {
+			if (!settled) {
+				settled = true;
+				reject(new Error(`Request timed out after ${timeoutMs / 1000}s.`));
+			}
+		}, timeoutMs);
+
+		const finish = (callback: () => void): void => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			window.clearTimeout(timeoutId);
+			callback();
+		};
+
+		void requestUrl({
+			url,
+			method: "POST",
+			contentType: "application/json",
+			headers,
+			body: JSON.stringify(body),
+			throw: false,
+		}).then(
+			(value) => finish(() => resolve(value)),
+			(error: unknown) => finish(() => reject(error))
+		);
+	});
 }
 
 function readOllamaContent(payload: unknown): string {

@@ -281,8 +281,8 @@ async function isExecutableFile(candidatePath: string): Promise<boolean> {
  *      process inherited (will fail with a clear "command not found" if
  *      that doesn't resolve either).
  *
- * Every candidate checked is logged so a failed resolution is easy to
- * diagnose from Obsidian's Developer Console.
+ * Failed resolution still warns in the Developer Console so the fallback
+ * to PATH is visible.
  */
 export async function resolveDoclingBinaryPath(
 	explicitBinaryPath?: string,
@@ -290,7 +290,6 @@ export async function resolveDoclingBinaryPath(
 ): Promise<string> {
 	const trimmedBinaryPath = explicitBinaryPath?.trim();
 	if (trimmedBinaryPath) {
-		console.log(`${LOG_PREFIX} using explicit Docling binary path from settings: "${trimmedBinaryPath}"`);
 		return trimmedBinaryPath;
 	}
 
@@ -299,9 +298,7 @@ export async function resolveDoclingBinaryPath(
 		const pythonBinDir = path.dirname(trimmedPythonPath);
 		const siblingCandidates = [path.join(pythonBinDir, "docling"), path.join(pythonBinDir, "docling.exe")];
 		for (const candidate of siblingCandidates) {
-			console.log(`${LOG_PREFIX} checking candidate path (derived from configured Python path) "${candidate}"`);
 			if (await isExecutableFile(candidate)) {
-				console.log(`${LOG_PREFIX} resolved docling binary -> "${candidate}"`);
 				return candidate;
 			}
 		}
@@ -311,9 +308,7 @@ export async function resolveDoclingBinaryPath(
 	}
 
 	for (const candidate of getDoclingBinaryCandidates()) {
-		console.log(`${LOG_PREFIX} checking candidate path "${candidate}"`);
 		if (await isExecutableFile(candidate)) {
-			console.log(`${LOG_PREFIX} resolved docling binary -> "${candidate}"`);
 			return candidate;
 		}
 	}
@@ -362,8 +357,8 @@ export async function testDoclingExecutable(
  * "convert" subcommand) and parses its real output. Any failure - the
  * `docling` binary not being resolvable, a non-zero exit code, an
  * unexpected output layout, a version mismatch in CLI syntax - is caught,
- * logged in full (resolved binary path, exact command, stdout/stderr),
- * and surfaced as an `error` on the result rather than thrown, so
+ * logged on failure (stdout/stderr plus the error), and surfaced as an
+ * `error` on the result rather than thrown, so
  * `DocumentExtractorRegistry` can cleanly fall back to `PdfParseExtractor`
  * whenever the local Docling install isn't cooperating.
  */
@@ -463,18 +458,12 @@ export class DoclingLocalExtractor implements DocumentExtractor {
 		const entries = await fsPromises.readdir(outputDir);
 		const markdownFiles = entries.filter((entry) => entry.toLowerCase().endsWith(".md"));
 
-		console.log(`${LOG_PREFIX} output directory contents: [${entries.join(", ")}]`);
-
 		if (markdownFiles.length === 0) {
 			return null;
 		}
 		if (markdownFiles.length === 1) {
 			return path.join(outputDir, markdownFiles[0]);
 		}
-
-		console.log(
-			`${LOG_PREFIX} found ${markdownFiles.length} .md files in output directory, picking the largest: [${markdownFiles.join(", ")}]`
-		);
 
 		let largestPath = path.join(outputDir, markdownFiles[0]);
 		let largestSize = -1;
@@ -540,13 +529,8 @@ export class DoclingLocalExtractor implements DocumentExtractor {
 				forceOcr: Boolean(this.options.enableOcr),
 			});
 
-			console.log(`${LOG_PREFIX} resolved binary path: "${resolvedCommand}"`);
-			console.log(`${LOG_PREFIX} running command: ${preferredCommand}`);
-
-			let stdout: string;
-			let stderr: string;
 			try {
-				({ stdout, stderr } = await execAsync(preferredCommand, { timeout: timeoutMs }));
+				await execAsync(preferredCommand, { timeout: timeoutMs });
 			} catch (error) {
 				if (!isUnknownCliOptionError(error)) {
 					throw error;
@@ -561,13 +545,7 @@ export class DoclingLocalExtractor implements DocumentExtractor {
 				console.warn(
 					`${LOG_PREFIX} Docling rejected image/OCR flags; retrying compatibility command: ${compatibilityCommand}`
 				);
-				({ stdout, stderr } = await execAsync(compatibilityCommand, { timeout: timeoutMs }));
-			}
-			if (stdout) {
-				console.log(`${LOG_PREFIX} stdout:\n${stdout}`);
-			}
-			if (stderr) {
-				console.log(`${LOG_PREFIX} stderr:\n${stderr}`);
+				await execAsync(compatibilityCommand, { timeout: timeoutMs });
 			}
 
 			const outputPath = await this.findMarkdownOutput(outputDir);
@@ -578,7 +556,6 @@ export class DoclingLocalExtractor implements DocumentExtractor {
 			}
 
 			const extractedText = sanitizeExtractedText(await fsPromises.readFile(outputPath, "utf8"));
-			console.log(`${LOG_PREFIX} read ${extractedText.length} characters from "${outputPath}" (after Base64 sanitization)`);
 
 			// Docling's CLI wrapper doesn't currently parse a page count
 			// out of its output, so this checks total characters against
@@ -586,9 +563,6 @@ export class DoclingLocalExtractor implements DocumentExtractor {
 			// comment) - still a meaningful signal for "basically no text
 			// came out of this conversion at all".
 			const scanDetection = detectIfScannedPdf(extractedText);
-			console.log(
-				`${LOG_PREFIX} scanned-PDF check: isScanned=${scanDetection.isScanned}, confidence=${scanDetection.confidence}`
-			);
 
 			if (scanDetection.isScanned && !this.options.enableOcr) {
 				// Deliberately NOT falling through to the generic
@@ -631,10 +605,10 @@ export class DoclingLocalExtractor implements DocumentExtractor {
 			// error alone.
 			const execError = error as { stdout?: string; stderr?: string };
 			if (execError?.stdout) {
-				console.log(`${LOG_PREFIX} stdout (on failure):\n${execError.stdout}`);
+				console.error(`${LOG_PREFIX} stdout (on failure):\n${execError.stdout}`);
 			}
 			if (execError?.stderr) {
-				console.log(`${LOG_PREFIX} stderr (on failure):\n${execError.stderr}`);
+				console.error(`${LOG_PREFIX} stderr (on failure):\n${execError.stderr}`);
 			}
 			console.error(`${LOG_PREFIX} extraction failed for "${filePath}":`, error);
 

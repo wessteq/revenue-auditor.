@@ -113,7 +113,6 @@ class PluginLogger {
 
 	info(message: string): void {
 		this.record("info", message);
-		console.log(`[Revenue Auditor] ${message}`);
 	}
 
 	warn(message: string): void {
@@ -2600,7 +2599,7 @@ export default class RevenueAuditorPlugin extends Plugin {
 			// do not fall back to a default payments.csv.
 			let loadedPayments: PaymentsCsvLoadResult;
 			if (csvFile === null) {
-				console.log("⚠️ Audit running WITHOUT payment reconciliation (CSV skipped)");
+				this.logger.info("Audit running without payment reconciliation (CSV skipped).");
 				loadedPayments = { kind: "skipped" };
 			} else {
 				loadedPayments = await this.loadPaymentsFromCsv(csvFile);
@@ -2865,14 +2864,14 @@ export default class RevenueAuditorPlugin extends Plugin {
 	}
 
 	private copyTextFallback(text: string): void {
-		const textarea = document.createElement("textarea");
+		const textarea = document.body.createEl("textarea", {
+			attr: { readonly: "true" },
+		});
 		textarea.value = text;
-		textarea.setAttribute("readonly", "true");
 		textarea.setCssStyles({
 			position: "fixed",
 			opacity: "0",
 		});
-		document.body.appendChild(textarea);
 		textarea.select();
 		const copied = document.execCommand("copy");
 		textarea.remove();
